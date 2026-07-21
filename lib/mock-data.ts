@@ -1,4 +1,3 @@
-// Мок-данные для статического режима (без БД)
 // Используются когда USE_DATABASE=false или БД недоступна
 
 import {
@@ -159,6 +158,7 @@ export const mockDishes: Dish[] = [
       { name: "Яйца", quantity: "3 шт" },
       { name: "Молоко", quantity: "50 мл" },
     ],
+    photoUrl: "https://images.unsplash.com/photo-1510693206972-df098062cb71?w=200&h=200&fit=crop",
     createdAt: new Date("2025-01-01").toISOString(),
     updatedAt: new Date("2025-01-01").toISOString(),
   },
