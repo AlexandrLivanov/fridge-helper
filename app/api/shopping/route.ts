@@ -14,6 +14,18 @@ import { mockShoppingItems } from "@/lib/mock-data";
 let inMemoryItems = [...mockShoppingItems];
 let nextItemId = 100;
 
+// Глобальное хранилище для продуктов в памяти (для режима без БД)
+declare global {
+  var _inMemoryProducts: any[] | undefined;
+  var _nextProductId: number | undefined;
+}
+
+if (!globalThis._inMemoryProducts) {
+  const { mockProducts } = require("@/lib/mock-data");
+  globalThis._inMemoryProducts = [...mockProducts];
+  globalThis._nextProductId = 100;
+}
+
 const createShoppingSchema = z.object({
   name: z.string().min(1).max(200),
   quantity: z.string().min(1).max(100),
@@ -86,6 +98,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (isBought) {
+      const item = inMemoryItems[index];
+      // Добавляем продукт в холодильник
+      const products = globalThis._inMemoryProducts!;
+      const existingProduct = products.find(
+        (p: any) => p.name.toLowerCase() === item.name.toLowerCase()
+      );
+      if (!existingProduct) {
+        const now = new Date().toISOString();
+        const newProduct = {
+          id: `memory-${globalThis._nextProductId!++}`,
+          name: item.name,
+          quantity: item.quantity,
+          category: "Прочее",
+          isFinished: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+        products.push(newProduct);
+      }
+      // Удаляем из списка покупок
       inMemoryItems.splice(index, 1);
       return NextResponse.json({ item: { id } });
     }
