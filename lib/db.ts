@@ -13,6 +13,9 @@ function createDocClient() {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "",
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "",
     },
+    requestHandler: {
+      requestTimeout: 2000,
+    } as any,
   });
 
   return DynamoDBDocumentClient.from(client);
@@ -28,6 +31,15 @@ const globalForDbAvailable = globalThis as unknown as {
 };
 
 export async function isDatabaseAvailable(): Promise<boolean> {
+  // На Vercel или если нет переменных окружения для БД — сразу false
+  if (
+    !process.env.DOCUMENT_API_ENDPOINT ||
+    !process.env.AWS_ACCESS_KEY_ID ||
+    !process.env.AWS_SECRET_ACCESS_KEY
+  ) {
+    return false;
+  }
+
   if (process.env.USE_DATABASE === "false") {
     return false;
   }
