@@ -9,6 +9,10 @@ import {
 } from "@/lib/models";
 import { mockDishes } from "@/lib/mock-data";
 
+// In-memory fallback for when DB is not available
+let inMemoryDishes = [...mockDishes];
+let nextId = 100;
+
 const ingredientSchema = z.object({
   name: z.string().min(1).max(200),
   quantity: z.string().min(1).max(100),
@@ -32,7 +36,7 @@ export async function GET() {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json({ dishes: mockDishes });
+    return NextResponse.json({ dishes: inMemoryDishes });
   }
 
   const dishes = await getAllDishes();
@@ -49,11 +53,17 @@ export async function POST(request: NextRequest) {
   }
 
   const dbAvailable = await isDatabaseAvailable();
+
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    const now = new Date().toISOString();
+    const newDish = {
+      id: `memory-${nextId++}`,
+      ...parsed.data,
+      createdAt: now,
+      updatedAt: now,
+    };
+    inMemoryDishes.push(newDish);
+    return NextResponse.json({ dish: newDish }, { status: 201 });
   }
 
   const dish = await createDish(parsed.data);
@@ -80,11 +90,21 @@ export async function PATCH(request: NextRequest) {
   }
 
   const dbAvailable = await isDatabaseAvailable();
+
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    const index = inMemoryDishes.findIndex((d) => d.id === id);
+    if (index === -1) {
+      return NextResponse.json(
+        { error: "Блюдо не найдено" },
+        { status: 404 }
+      );
+    }
+    inMemoryDishes[index] = {
+      ...inMemoryDishes[index],
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+    };
+    return NextResponse.json({ dish: inMemoryDishes[index] });
   }
 
   const dish = await updateDish(id, parsed.data);
@@ -103,11 +123,10 @@ export async function DELETE(request: NextRequest) {
   }
 
   const dbAvailable = await isDatabaseAvailable();
+
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    inMemoryDishes = inMemoryDishes.filter((d) => d.id !== id);
+    return NextResponse.json({ success: true });
   }
 
   await deleteDish(id);
