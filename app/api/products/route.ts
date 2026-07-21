@@ -9,10 +9,13 @@ import {
   getAllShoppingItems,
   createShoppingItem,
 } from "@/lib/models";
-import { mockProducts } from "@/lib/mock-data";
-
-let inMemoryProducts = [...mockProducts];
-let nextProductId = 100;
+import {
+  inMemoryProducts,
+  addProduct,
+  removeProduct,
+  inMemoryShoppingItems,
+  addShoppingItem,
+} from "@/lib/in-memory-store";
 
 const createProductSchema = z.object({
   name: z.string().min(1).max(200),
@@ -51,14 +54,7 @@ export async function POST(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    const now = new Date().toISOString();
-    const product = {
-      id: `memory-${nextProductId++}`,
-      ...parsed.data,
-      createdAt: now,
-      updatedAt: now,
-    };
-    inMemoryProducts.push(product);
+    const product = addProduct(parsed.data);
     return NextResponse.json({ product }, { status: 201 });
   }
 
@@ -88,25 +84,26 @@ export async function PATCH(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    const index = inMemoryProducts.findIndex((p) => p.id === id);
-    if (index === -1) {
-      return NextResponse.json(
-        { error: "Продукт не найден" },
-        { status: 404 }
-      );
-    }
-
     if (parsed.data.isFinished === true) {
-      inMemoryProducts.splice(index, 1);
+      const product = inMemoryProducts.find((p) => p.id === id);
+      if (product) {
+        // Добавляем в список покупок, если ещё нет
+        const alreadyInList = inMemoryShoppingItems.some(
+          (si) => si.name.toLowerCase() === product.name.toLowerCase() && !si.isBought
+        );
+        if (!alreadyInList) {
+          addShoppingItem({
+            name: product.name,
+            quantity: product.quantity,
+            isBought: false,
+          });
+        }
+        removeProduct(id);
+      }
       return NextResponse.json({ product: { id } });
     }
 
-    inMemoryProducts[index] = {
-      ...inMemoryProducts[index],
-      ...parsed.data,
-      updatedAt: new Date().toISOString(),
-    };
-    return NextResponse.json({ product: inMemoryProducts[index] });
+    return NextResponse.json({ product: { id } });
   }
 
   const product = await updateProduct(id, parsed.data);
@@ -144,7 +141,7 @@ export async function DELETE(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
+    removeProduct(id);
     return NextResponse.json({ success: true });
   }
 
