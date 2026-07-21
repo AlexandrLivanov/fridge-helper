@@ -11,6 +11,9 @@ import {
 } from "@/lib/models";
 import { mockProducts } from "@/lib/mock-data";
 
+let inMemoryProducts = [...mockProducts];
+let nextProductId = 100;
+
 const createProductSchema = z.object({
   name: z.string().min(1).max(200),
   quantity: z.string().min(1).max(100),
@@ -29,7 +32,7 @@ export async function GET() {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json({ products: mockProducts });
+    return NextResponse.json({ products: inMemoryProducts });
   }
 
   const products = await getAllProducts();
@@ -48,10 +51,15 @@ export async function POST(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    const now = new Date().toISOString();
+    const product = {
+      id: `memory-${nextProductId++}`,
+      ...parsed.data,
+      createdAt: now,
+      updatedAt: now,
+    };
+    inMemoryProducts.push(product);
+    return NextResponse.json({ product }, { status: 201 });
   }
 
   const product = await createProduct(parsed.data);
@@ -80,10 +88,25 @@ export async function PATCH(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    const index = inMemoryProducts.findIndex((p) => p.id === id);
+    if (index === -1) {
+      return NextResponse.json(
+        { error: "Продукт не найден" },
+        { status: 404 }
+      );
+    }
+
+    if (parsed.data.isFinished === true) {
+      inMemoryProducts.splice(index, 1);
+      return NextResponse.json({ product: { id } });
+    }
+
+    inMemoryProducts[index] = {
+      ...inMemoryProducts[index],
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+    };
+    return NextResponse.json({ product: inMemoryProducts[index] });
   }
 
   const product = await updateProduct(id, parsed.data);
@@ -121,10 +144,8 @@ export async function DELETE(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+    inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
+    return NextResponse.json({ success: true });
   }
 
   await deleteProduct(id);
