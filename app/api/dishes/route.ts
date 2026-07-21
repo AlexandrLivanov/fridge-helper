@@ -1,33 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isDatabaseAvailable } from "@/lib/db";
-import { createDish, updateDish, deleteDish } from "@/lib/models";
+import {
+  getAllDishes,
+  createDish,
+  updateDish,
+  deleteDish,
+} from "@/lib/models";
+import { mockDishes } from "@/lib/mock-data";
+
+const ingredientSchema = z.object({
+  name: z.string().min(1).max(200),
+  quantity: z.string().min(1).max(100),
+});
 
 const createDishSchema = z.object({
-  categoryId: z.string().min(1),
   name: z.string().min(1).max(200),
-  ingredients: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(200),
-        quantity: z.string().min(1).max(100),
-      })
-    )
-    .default([]),
+  categoryId: z.string().min(1),
+  ingredients: z.array(ingredientSchema).min(1),
+  photoUrl: z.string().max(2000).optional(),
 });
 
 const updateDishSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   categoryId: z.string().min(1).optional(),
-  ingredients: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(200),
-        quantity: z.string().min(1).max(100),
-      })
-    )
-    .optional(),
+  ingredients: z.array(ingredientSchema).min(1).optional(),
+  photoUrl: z.string().max(2000).optional(),
 });
+
+export async function GET() {
+  const dbAvailable = await isDatabaseAvailable();
+
+  if (!dbAvailable) {
+    return NextResponse.json({ dishes: mockDishes });
+  }
+
+  const dishes = await getAllDishes();
+  return NextResponse.json({ dishes });
+}
 
 export async function POST(request: NextRequest) {
   const parsed = createDishSchema.safeParse(await request.json());
@@ -38,7 +48,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!(await isDatabaseAvailable())) {
+  const dbAvailable = await isDatabaseAvailable();
+  if (!dbAvailable) {
     return NextResponse.json(
       { error: "База данных недоступна" },
       { status: 503 }
@@ -54,7 +65,10 @@ export async function PATCH(request: NextRequest) {
   const id = searchParams.get("id");
 
   if (!id) {
-    return NextResponse.json({ error: "Не указан id блюда" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Не указан id блюда" },
+      { status: 400 }
+    );
   }
 
   const parsed = updateDishSchema.safeParse(await request.json());
@@ -65,7 +79,8 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (!(await isDatabaseAvailable())) {
+  const dbAvailable = await isDatabaseAvailable();
+  if (!dbAvailable) {
     return NextResponse.json(
       { error: "База данных недоступна" },
       { status: 503 }
@@ -81,10 +96,14 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
 
   if (!id) {
-    return NextResponse.json({ error: "Не указан id блюда" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Не указан id блюда" },
+      { status: 400 }
+    );
   }
 
-  if (!(await isDatabaseAvailable())) {
+  const dbAvailable = await isDatabaseAvailable();
+  if (!dbAvailable) {
     return NextResponse.json(
       { error: "База данных недоступна" },
       { status: 503 }
