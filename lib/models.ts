@@ -48,6 +48,7 @@ export interface Dish {
   categoryId: string;
   name: string;
   ingredients: Ingredient[];
+  photoUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -470,7 +471,7 @@ export async function createDish(
 
 export async function updateDish(
   id: string,
-  data: Partial<Pick<Dish, "name" | "ingredients" | "categoryId">>
+  data: Partial<Pick<Dish, "name" | "ingredients" | "categoryId" | "photoUrl">>
 ): Promise<Dish> {
   const updateExpr: string[] = [];
   const exprValues: Record<string, unknown> = {};
@@ -492,6 +493,12 @@ export async function updateDish(
     updateExpr.push("#categoryId = :categoryId");
     exprValues[":categoryId"] = data.categoryId;
     exprNames["#categoryId"] = "categoryId";
+  }
+
+  if (data.photoUrl !== undefined) {
+    updateExpr.push("#photoUrl = :photoUrl");
+    exprValues[":photoUrl"] = data.photoUrl;
+    exprNames["#photoUrl"] = "photoUrl";
   }
 
   updateExpr.push("updatedAt = :updatedAt");
