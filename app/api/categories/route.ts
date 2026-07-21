@@ -6,35 +6,30 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
-  getAllDishes,
   deleteDishesByCategory,
 } from "@/lib/models";
-import { getMockCategoriesWithDishes } from "@/lib/mock-data";
+import { mockCategories } from "@/lib/mock-data";
+
+let inMemoryCategories = [...mockCategories];
+let nextCategoryId = 100;
 
 const createCategorySchema = z.object({
   name: z.string().min(1).max(200),
 });
 
 const updateCategorySchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().min(1).max(200).optional(),
 });
 
 export async function GET() {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json({ categories: getMockCategoriesWithDishes() });
+    return NextResponse.json({ categories: inMemoryCategories });
   }
 
   const categories = await getAllCategories();
-  const dishes = await getAllDishes();
-
-  const categoriesWithDishes = categories.map((cat) => ({
-    ...cat,
-    dishes: dishes.filter((d) => d.categoryId === cat.id),
-  }));
-
-  return NextResponse.json({ categories: categoriesWithDishes });
+  return NextResponse.json({ categories });
 }
 
 export async function POST(request: NextRequest) {
@@ -46,11 +41,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!(await isDatabaseAvailable())) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+  const dbAvailable = await isDatabaseAvailable();
+
+  if (!dbAvailable) {
+    const now = new Date().toISOString();
+    const category = {
+      id: `memory-${nextCategoryId++}`,
+      name: parsed.data.name,
+      createdAt: now,
+      updatedAt: now,
+    };
+    inMemoryCategories.push(category);
+    return NextResponse.json({ category }, { status: 201 });
   }
 
   const category = await createCategory(parsed.data);
@@ -76,11 +78,22 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (!(await isDatabaseAvailable())) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+  const dbAvailable = await isDatabaseAvailable();
+
+  if (!dbAvailable) {
+    const index = inMemoryCategories.findIndex((c) => c.id === id);
+    if (index === -1) {
+      return NextResponse.json(
+        { error: "Категория не найдена" },
+        { status: 404 }
+      );
+    }
+    inMemoryCategories[index] = {
+      ...inMemoryCategories[index],
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+    };
+    return NextResponse.json({ category: inMemoryCategories[index] });
   }
 
   const category = await updateCategory(id, parsed.data);
@@ -98,11 +111,11 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  if (!(await isDatabaseAvailable())) {
-    return NextResponse.json(
-      { error: "База данных недоступна" },
-      { status: 503 }
-    );
+  const dbAvailable = await isDatabaseAvailable();
+
+  if (!dbAvailable) {
+    inMemoryCategories = inMemoryCategories.filter((c) => c.id !== id);
+    return NextResponse.json({ success: true });
   }
 
   await deleteDishesByCategory(id);
