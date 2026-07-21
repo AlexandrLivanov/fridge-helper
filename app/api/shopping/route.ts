@@ -9,22 +9,12 @@ import {
   getAllProducts,
   createProduct,
 } from "@/lib/models";
-import { mockShoppingItems } from "@/lib/mock-data";
-
-let inMemoryItems = [...mockShoppingItems];
-let nextItemId = 100;
-
-// Глобальное хранилище для продуктов в памяти (для режима без БД)
-declare global {
-  var _inMemoryProducts: any[] | undefined;
-  var _nextProductId: number | undefined;
-}
-
-if (!globalThis._inMemoryProducts) {
-  const { mockProducts } = require("@/lib/mock-data");
-  globalThis._inMemoryProducts = [...mockProducts];
-  globalThis._nextProductId = 100;
-}
+import {
+  inMemoryShoppingItems,
+  addShoppingItem,
+  removeShoppingItem,
+  buyShoppingItem,
+} from "@/lib/in-memory-store";
 
 const createShoppingSchema = z.object({
   name: z.string().min(1).max(200),
@@ -35,7 +25,7 @@ export async function GET() {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    return NextResponse.json({ items: inMemoryItems });
+    return NextResponse.json({ items: inMemoryShoppingItems });
   }
 
   const items = await getAllShoppingItems();
@@ -54,16 +44,11 @@ export async function POST(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    const now = new Date().toISOString();
-    const item = {
-      id: `memory-${nextItemId++}`,
+    const item = addShoppingItem({
       name: parsed.data.name,
       quantity: parsed.data.quantity,
       isBought: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    inMemoryItems.push(item);
+    });
     return NextResponse.json({ item }, { status: 201 });
   }
 
@@ -89,44 +74,18 @@ export async function PATCH(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    const index = inMemoryItems.findIndex((i) => i.id === id);
-    if (index === -1) {
-      return NextResponse.json(
-        { error: "Не найдено" },
-        { status: 404 }
-      );
-    }
-
     if (isBought) {
-      const item = inMemoryItems[index];
-      // Добавляем продукт в холодильник
-      const products = globalThis._inMemoryProducts!;
-      const existingProduct = products.find(
-        (p: any) => p.name.toLowerCase() === item.name.toLowerCase()
-      );
-      if (!existingProduct) {
-        const now = new Date().toISOString();
-        const newProduct = {
-          id: `memory-${globalThis._nextProductId!++}`,
-          name: item.name,
-          quantity: item.quantity,
-          category: "Прочее",
-          isFinished: false,
-          createdAt: now,
-          updatedAt: now,
-        };
-        products.push(newProduct);
+      const result = buyShoppingItem(id);
+      if (!result) {
+        return NextResponse.json(
+          { error: "Не найдено" },
+          { status: 404 }
+        );
       }
-      // Удаляем из списка покупок
-      inMemoryItems.splice(index, 1);
-      return NextResponse.json({ item: { id } });
+      return NextResponse.json({ item: result });
     }
 
-    inMemoryItems[index] = {
-      ...inMemoryItems[index],
-      updatedAt: new Date().toISOString(),
-    };
-    return NextResponse.json({ item: inMemoryItems[index] });
+    return NextResponse.json({ item: { id } });
   }
 
   const item = await updateShoppingItem(id, { isBought });
@@ -164,7 +123,7 @@ export async function DELETE(request: NextRequest) {
   const dbAvailable = await isDatabaseAvailable();
 
   if (!dbAvailable) {
-    inMemoryItems = inMemoryItems.filter((i) => i.id !== id);
+    removeShoppingItem(id);
     return NextResponse.json({ success: true });
   }
 
