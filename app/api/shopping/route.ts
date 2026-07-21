@@ -86,27 +86,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (isBought) {
-      const item = inMemoryItems[index];
-      const products = inMemoryProducts || [];
-      const existingProduct = products.find(
-        (p: any) => p.name.toLowerCase() === item.name.toLowerCase()
-      );
-      if (!existingProduct) {
-        const now = new Date().toISOString();
-        const newProduct = {
-          id: `memory-${nextProductId++}`,
-          name: item.name,
-          quantity: item.quantity,
-          category: "Прочее",
-          isFinished: false,
-          createdAt: now,
-          updatedAt: now,
-        };
-        (globalThis as any)._pendingProducts = [
-          ...((globalThis as any)._pendingProducts || []),
-          newProduct,
-        ];
-      }
       inMemoryItems.splice(index, 1);
       return NextResponse.json({ item: { id } });
     }
